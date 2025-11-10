@@ -2,69 +2,115 @@
 
 namespace App\Services;
 
-use Exception;
-
 class DatabaseService
 {
-    private $connection;
-    
-    public function __construct()
+    /** @var resource|null */
+    private $conn = null;
+
+    private function connect(): void
     {
-        $this->connect();
-    }
-    
-    private function connect()
-    {
-        $host = env('DB_HOST');
-        $port = env('DB_PORT');
-        $database = env('DB_DATABASE');
-        $username = env('DB_USERNAME');
-        $password = env('DB_PASSWORD');
-        
-        $connString = "host=$host port=$port dbname=$database user=$username password=$password sslmode=require";
-        
-        $this->connection = pg_connect($connString);
-        
-        if (!$this->connection) {
-            throw new Exception("Error al conectar a PostgreSQL");
+        $cfg = config('database.connections.pgsql');
+
+        $host     = $cfg['host']     ?? '127.0.0.1';
+        $port     = $cfg['port']     ?? '5432';
+        $dbname   = $cfg['database'] ?? 'postgres';
+        $user     = $cfg['username'] ?? 'postgres';
+        $password = $cfg['password'] ?? '';
+        $sslmode  = $cfg['sslmode']  ?? 'disable';
+
+        $connStr = sprintf(
+            "host=%s port=%s dbname=%s user=%s password=%s sslmode=%s",
+            $host, $port, $dbname, $user, $password, $sslmode
+        );
+
+        $this->conn = @pg_connect($connStr);
+        if (!$this->conn) {
+            $pgErr = @pg_last_error() ?: 'sin detalle';
+            throw new \RuntimeException('No se pudo conectar a PostgreSQL. Detalle: '.$pgErr);
         }
     }
-    
-    public function query($sql, $params = [])
+
+    /** Asegura conexión viva; si está cerrada o BAD, reconecta. */
+    private function ensureConnection(): void
     {
-        if (empty($params)) {
-            $result = pg_query($this->connection, $sql);
-        } else {
-            $result = pg_query_params($this->connection, $sql, $params);
+        if (!$this->conn) {
+            $this->connect();
+            return;
         }
-        
-        if (!$result) {
-            throw new Exception("Error en consulta: " . pg_last_error($this->connection));
+
+        $status = @pg_connection_status($this->conn);
+        if ($status !== PGSQL_CONNECTION_OK) {
+            // intenta reconectar
+            @pg_close($this->conn);
+            $this->conn = null;
+            $this->connect();
+            return;
         }
-        
-        return $result;
+
+        // ping defensivo (algunos drivers marcan OK pero no responden)
+        if (@pg_ping($this->conn) === false) {
+            @pg_close($this->conn);
+            $this->conn = null;
+            $this->connect();
+        }
     }
-    
-    public function fetchAll($query, $params = [])
+
+    public function query(string $sql, array $params = []): array
     {
-        $result = $this->query($query, $params);
-        $rows = [];
-        while ($row = pg_fetch_assoc($result)) {
-            $rows[] = $row;
+        $this->ensureConnection();
+
+        $result = $params
+            ? @pg_query_params($this->conn, $sql, $params)
+            : @pg_query($this->conn, $sql);
+
+        if ($result === false) {
+            $err = @pg_last_error($this->conn) ?: 'Error desconocido en la consulta.';
+            throw new \RuntimeException($err);
         }
-        return $rows;
+
+        $rows = @pg_fetch_all($result);
+        return $rows ?: [];
     }
-    
-    public function fetchOne($query, $params = [])
+
+    public function exec(string $sql, array $params = []): int
     {
-        $result = $this->query($query, $params);
-        return pg_fetch_assoc($result);
+        $this->ensureConnection();
+
+        $result = $params
+            ? @pg_query_params($this->conn, $sql, $params)
+            : @pg_query($this->conn, $sql);
+
+        if ($result === false) {
+            $err = @pg_last_error($this->conn) ?: 'Error desconocido en exec.';
+            throw new \RuntimeException($err);
+        }
+
+        return @pg_affected_rows($result) ?: 0;
     }
-    
+
+    public function fetchAll(string $sql, array $params = []): array
+    {
+        return $this->query($sql, $params);
+    }
+
+    public function fetchOne(string $sql, array $params = []): ?array
+    {
+        $rows = $this->query($sql, $params);
+        return $rows[0] ?? null;
+    }
+
     public function __destruct()
     {
-        if ($this->connection && is_resource($this->connection)) {
-            @pg_close($this->connection);
+        try {
+            if ($this->conn && \function_exists('pg_connection_status')) {
+                if (@pg_connection_status($this->conn) === PGSQL_CONNECTION_OK) {
+                    @pg_close($this->conn);
+                }
+            }
+        } catch (\Throwable $e) {
+            // silencioso
+        } finally {
+            $this->conn = null;
         }
     }
 }

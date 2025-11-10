@@ -9,14 +9,21 @@ class RolPermisoSeeder extends Seeder
 {
     public function run(): void
     {
-        $adminId = DB::table('rol')->where('nombre','Administrador')->value('id');
-        $permIds = DB::table('permiso')->pluck('id')->all();
+        $adminId = DB::table('rol')->where('nombre','Administrador')->value('idrol');
+        if (!$adminId) {
+            throw new \RuntimeException("No existe el rol 'Administrador'. Ejecuta primero RolSeeder.");
+        }
+
+        $permIds = DB::table('permiso')->pluck('idpermiso')->all();
 
         $rows = [];
-        $now = now();
         foreach ($permIds as $pid) {
-            $rows[] = ['idrol'=>$adminId,'idpermiso'=>$pid,'created_at'=>$now,'updated_at'=>$now];
+            $rows[] = ['idrol' => $adminId, 'idpermiso' => $pid];
         }
-        DB::table('rol_permiso')->insert($rows);
+
+        // Evita error si lo corres varias veces
+        if (!empty($rows)) {
+            DB::table('rol_permiso')->insertOrIgnore($rows);
+        }
     }
 }

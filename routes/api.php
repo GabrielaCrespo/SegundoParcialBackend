@@ -15,12 +15,19 @@ use App\Http\Controllers\CarreraController;
 use App\Http\Controllers\FacultadController;
 use App\Http\Controllers\GestionController;
 
-Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::post('/refresh', [AuthController::class, 'refresh']);
-    Route::get('/me', [AuthController::class, 'me']);
-});
+use App\Models\User as UserModel;
+
+
+
+Route::prefix('auth')
+    ->middleware([]) // <- esto fuerza que no tenga 'auth', 'web', ni nada
+    ->withoutMiddleware(['auth', 'auth:api', 'auth:sanctum'])
+    ->group(function () {
+        Route::post('/login',   [AuthController::class, 'login']);
+        Route::post('/logout',  [AuthController::class, 'logout']);
+        Route::post('/refresh', [AuthController::class, 'refresh']);
+        Route::get('/me',       [AuthController::class, 'me']);
+    });
 
 Route::post('/docentes', [DocenteController::class, 'store']);
 Route::post('/coordinadores', [CoordinadorController::class, 'store']);

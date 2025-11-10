@@ -4,54 +4,101 @@ namespace App\Services;
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
-use Exception;
+use Illuminate\Http\Request;
 
 class JWTService
 {
-    private $key;
-    private $algorithm = 'HS256';
-    private $expiration = 86400; // 24 horas
+    private string $secret;
+    private string $alg = 'HS256';
+    private string $iss;
+    private string $aud;
+    private int $ttl;         // minutos de vida del access token
+    private int $refreshTtl;  // minutos de ventana para refrescar
+    private int $leeway;      // segundos de tolerancia de reloj
 
     public function __construct()
     {
-        $this->key = env('JWT_SECRET', env('APP_KEY', 'your-secret-key'));
+        // NO usar APP_KEY; usa tu propio JWT_SECRET
+        $this->secret     = (string) env('JWT_SECRET', 'change_this_secret');
+        $this->iss        = (string) env('JWT_ISS', 'segundo-parcial-backend');
+        $this->aud        = (string) env('JWT_AUD', 'segundo-parcial-frontend');
+        $this->ttl        = (int) env('JWT_TTL_MIN', 1440);        // 24 h
+        $this->refreshTtl = (int) env('JWT_REFRESH_TTL_MIN', 43200); // 30 días
+        $this->leeway     = (int) env('JWT_LEEWAY_SEC', 30);
+        JWT::$leeway      = $this->leeway;
     }
 
-    public function generateToken($payload)
+    public function generateToken(array $claims): string
     {
-        $payload['iat'] = time();
-        $payload['exp'] = time() + $this->expiration;
-        
-        return JWT::encode($payload, $this->key, $this->algorithm);
+        $now = time();
+
+        $payload = array_merge($claims, [
+            'iss' => $this->iss,
+            'aud' => $this->aud,
+            'iat' => $now,
+            'nbf' => $now,
+            'exp' => $now + ($this->ttl * 60),
+        ]);
+
+        return JWT::encode($payload, $this->secret, $this->alg);
     }
 
-    public function validateToken($token)
+    /** Devuelve el payload como array o null si inválido/expirado */
+    public function validateToken(string $token): ?array
     {
         try {
-            $decoded = JWT::decode($token, new Key($this->key, $this->algorithm));
-            return (array) $decoded;
-        } catch (Exception $e) {
-            throw new Exception('Token inválido: ' . $e->getMessage());
+            $decoded = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($this->secret, $this->alg));
+            return json_decode(json_encode($decoded), true);
+        } catch (\Throwable $e) {
+            \Log::warning('JWT validate error', ['msg' => $e->getMessage()]);
+            return null;
         }
     }
 
-    public function refreshToken($token)
+
+    /** Nuevo token si sigue dentro de la ventana de refresh; null si no */
+    public function refreshToken(string $token): ?string
     {
         $payload = $this->validateToken($token);
-        
-        // Remover timestamps anteriores
-        unset($payload['iat']);
-        unset($payload['exp']);
-        
+        if (!$payload) return null;
+
+        $issuedAt = (int)($payload['iat'] ?? 0);
+        if ($issuedAt + ($this->refreshTtl * 60) < time()) {
+            return null; // fuera de ventana de refresh
+        }
+
+        // Reemite con los mismos claims de negocio
+        unset($payload['iss'], $payload['aud'], $payload['iat'], $payload['nbf'], $payload['exp']);
+
         return $this->generateToken($payload);
     }
 
-    public function extractTokenFromHeader($authHeader)
-    {
-        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
-            throw new Exception('Token no proporcionado');
-        }
-        
-        return substr($authHeader, 7);
+    public function extractTokenFromHeader(\Illuminate\Http\Request $request): ?string
+{
+    // a) Header estándar
+    $auth = $request->header('Authorization');
+
+    // b) Fallback común en algunos servidores/proxies
+    if (!$auth) {
+        $auth = $request->server('HTTP_AUTHORIZATION');
     }
+
+    // c) Normaliza y extrae Bearer
+    if ($auth) {
+        $auth = trim(preg_replace('/\s+/', ' ', $auth));
+        if (stripos($auth, 'Bearer ') === 0) {
+            return trim(substr($auth, 7));
+        }
+    }
+
+    // d) Fallback de depuración: ?token=...
+    $qp = $request->query('token');
+    if (is_string($qp) && $qp !== '') {
+        return $qp;
+    }
+
+    return null;
+}
+
+
 }

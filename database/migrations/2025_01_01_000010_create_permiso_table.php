@@ -6,14 +6,14 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        Schema::create('rol', function (Blueprint $table) {
-            $table->id();
-            $table->string('nombre', 80)->unique();
+        Schema::create('permiso', function (Blueprint $table) {
+            $table->increments('idpermiso');
+            $table->string('nombre', 100)->unique();
             $table->string('descripcion', 255)->nullable();
-            $table->timestamps();
         });
     }
     public function down(): void {
-        Schema::dropIfExists('rol');
+        Schema::dropIfExists('permiso');
     }
 };
+

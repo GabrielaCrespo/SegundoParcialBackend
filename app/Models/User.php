@@ -8,110 +8,135 @@ class User
 {
     private $db;
 
+    private const SELECT_FIELDS = "
+        u.idusuario,
+        u.nombre,
+        u.celular,
+        u.username,
+        u.email,
+        u.password, 
+        u.activo,
+        u.idrol,
+        r.nombre AS rol_nombre
+    ";
+
     public function __construct()
     {
         $this->db = new DatabaseService();
     }
 
-    public function findByEmail($email)
+    public function findByEmail($email): ?array
     {
-        $query = "SELECT u.*, r.nombre as rol_nombre 
-                  FROM usuario u 
-                  LEFT JOIN rol r ON u.idrol = r.idrol 
-                  WHERE u.email = $1";
-        
-        return $this->db->fetchOne($query, [$email]);
+        $sql = "SELECT ".self::SELECT_FIELDS."
+                FROM usuario u
+                LEFT JOIN rol r ON u.idrol = r.idrol
+                WHERE u.email = $1
+                LIMIT 1";
+        return $this->db->fetchOne($sql, [$email]) ?: null;
     }
 
-    public function findByUsername($username)
+    public function findByUsername($username): ?array
     {
-        $query = "SELECT u.*, r.nombre as rol_nombre 
-                  FROM usuario u 
-                  LEFT JOIN rol r ON u.idrol = r.idrol 
-                  WHERE u.username = $1";
-        
-        return $this->db->fetchOne($query, [$username]);
+        $sql = "SELECT ".self::SELECT_FIELDS."
+                FROM usuario u
+                LEFT JOIN rol r ON u.idrol = r.idrol
+                WHERE u.username = $1
+                LIMIT 1";
+        return $this->db->fetchOne($sql, [$username]) ?: null;
     }
 
-    public function findById($id)
+    public function findById($id): ?array
     {
-        $query = "SELECT u.*, r.nombre as rol_nombre 
-                  FROM usuario u 
-                  LEFT JOIN rol r ON u.idrol = r.idrol 
-                  WHERE u.idusuario = $1";
-        
-        return $this->db->fetchOne($query, [$id]);
+        $sql = "SELECT ".self::SELECT_FIELDS."
+                FROM usuario u
+                LEFT JOIN rol r ON u.idrol = r.idrol
+                WHERE u.idusuario = $1
+                LIMIT 1";
+        return $this->db->fetchOne($sql, [$id]) ?: null;
     }
 
-    public function create($data)
+    public function getAll(): array
     {
-        $query = "INSERT INTO usuario (nombre, celular, username, email, password, activo, idrol) 
-                  VALUES ($1, $2, $3, $4, $5, $6, $7) 
-                  RETURNING idusuario, nombre, celular, username, email, activo, idrol";
-        
-        return $this->db->fetchOne($query, [
-            $data['nombre'],
+        $sql = "SELECT ".self::SELECT_FIELDS."
+                FROM usuario u
+                LEFT JOIN rol r ON u.idrol = r.idrol
+                ORDER BY u.idusuario";
+        return $this->db->fetchAll($sql);
+    }
+
+    public function create($data): ?array
+    {
+        $passwordHash = !empty($data['password'])
+            ? password_hash($data['password'], PASSWORD_DEFAULT)
+            : null;
+
+        $sql = "INSERT INTO usuario (nombre, celular, username, email, password, activo, idrol)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING idusuario";
+
+        $row = $this->db->fetchOne($sql, [
+            $data['nombre'] ?? null,
             $data['celular'] ?? null,
             $data['username'],
             $data['email'],
-            password_hash($data['password'], PASSWORD_DEFAULT),
+            $passwordHash,
             $data['activo'] ?? true,
-            $data['idrol']
+            $data['idrol'],
         ]);
+
+        $id = $row['idusuario'] ?? null;
+        return $id ? $this->findById($id) : null;
     }
 
-    public function update($id, $data)
+    public function update($id, $data): ?array
     {
-        $query = "UPDATE usuario 
-                  SET nombre = $1, celular = $2, username = $3, email = $4, activo = $5";
-        
-        $params = [
-            $data['nombre'],
-            $data['celular'] ?? null,
-            $data['username'],
-            $data['email'],
-            $data['activo'] ?? true
-        ];
-        
-        $paramCount = 6;
+        $sets = [];
+        $params = [];
+        $i = 1;
 
-        if (isset($data['password'])) {
-            $query .= ", password = $" . $paramCount;
-            $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
-            $paramCount++;
+        foreach (['nombre','celular','username','email','activo','idrol','password'] as $field) {
+            if (!array_key_exists($field, $data)) continue;
+
+            if ($field === 'password') {
+                if ($data['password'] === '' || $data['password'] === null) continue;
+                $value = password_hash($data['password'], PASSWORD_DEFAULT);
+                $sets[] = "password = $" . $i;
+                $params[] = $value;
+                $i++;
+                continue;
+            }
+
+            $sets[] = "$field = $" . $i;
+            $params[] = $data[$field] ?? null;
+            $i++;
         }
 
-        if (isset($data['idrol'])) {
-            $query .= ", idrol = $" . $paramCount;
-            $params[] = $data['idrol'];
-            $paramCount++;
+        if ($sets) {
+            $params[] = $id;
+            $sql = "UPDATE usuario SET ".implode(', ', $sets)." WHERE idusuario = $".$i;
+            $this->db->exec($sql, $params);
         }
 
-        $query .= " WHERE idusuario = $" . $paramCount . " 
-                   RETURNING idusuario, nombre, celular, username, email, activo, idrol";
-        $params[] = $id;
-
-        return $this->db->fetchOne($query, $params);
+        return $this->findById($id);
     }
 
-    public function delete($id)
+    public function delete($id): bool
     {
-        $query = "DELETE FROM usuario WHERE idusuario = $1";
-        return $this->db->query($query, [$id]);
+        $n = $this->db->exec("DELETE FROM usuario WHERE idusuario = $1", [$id]);
+        return $n > 0;
     }
 
-    public function getAll()
-    {
-        $query = "SELECT u.*, r.nombre as rol_nombre 
-                  FROM usuario u 
-                  LEFT JOIN rol r ON u.idrol = r.idrol 
-                  ORDER BY u.nombre";
-        
-        return $this->db->fetchAll($query);
-    }
-
-    public function verifyPassword($password, $hashedPassword)
+    public function verifyPassword($password, $hashedPassword): bool
     {
         return password_verify($password, $hashedPassword);
     }
+
+    public function toggleStatus(int $id): ?array
+    {
+        $sql = 'UPDATE usuario SET activo = NOT activo WHERE idusuario = $1 RETURNING idusuario, activo';
+        return $this->db->fetchOne($sql, [$id]);
+    }
+
+
+
 }

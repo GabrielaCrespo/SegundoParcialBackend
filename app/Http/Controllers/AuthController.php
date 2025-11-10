@@ -22,97 +22,72 @@ class AuthController extends Controller
      * CU1 - Iniciar Sesión
      */
     public function login(Request $request): JsonResponse
-    {
-        try {
-            $email = $request->input('email');
-            $password = $request->input('password');
-            
-            // Validar campos requeridos
-            if (!$email || !$password) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Email y password son requeridos'
-                ], 400);
-            }
-            
-            // Buscar usuario por email
-            $user = $this->userModel->findByEmail($email);
-            
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Credenciales inválidas'
-                ], 401);
-            }
-            
-            // Verificar si el usuario está activo
-            if (!$user['activo']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Usuario inactivo'
-                ], 401);
-            }
-            
-            // Verificar password
-            if (!$this->userModel->verifyPassword($password, $user['password'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Credenciales inválidas'
-                ], 401);
-            }
-            
-            // Generar token JWT
-            $tokenData = [
-                'user_id' => $user['idusuario'],
-                'email' => $user['email'],
-                'role' => $user['rol_nombre'],
-                'role_id' => $user['idrol']
-            ];
-            
-            $token = $this->jwtService->generateToken($tokenData);
-            
-            // Remover password de la respuesta
-            unset($user['password']);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Login exitoso',
-                'data' => [
-                    'user' => $user,
-                    'token' => $token
-                ]
-            ], 200);
-            
-        } catch (\Exception $e) {
+{
+    try {
+        $email = trim((string) $request->input('email', ''));
+        $password = (string) $request->input('password', '');
+
+        if ($email === '' || $password === '') {
             return response()->json([
                 'success' => false,
-                'message' => 'Error interno del servidor',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Email y password son requeridos'
+            ], 400);
         }
-    }
-    
-    /**
-     * CU1 - Cerrar Sesión
-     */
-    public function logout(Request $request): JsonResponse
-    {
-        try {
-            // En un sistema JWT sin blacklist, simplemente respondemos exitosamente
-            // El cliente debe eliminar el token del storage
-            return response()->json([
-                'success' => true,
-                'message' => 'Logout exitoso'
-            ], 200);
-            
-        } catch (\Exception $e) {
+
+        $user = $this->userModel->findByEmail($email);
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error interno del servidor',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Credenciales inválidas'
+            ], 401);
         }
+
+        $activo = ($user['activo'] === true) || ($user['activo'] === 1) ||
+                  ($user['activo'] === '1')   || ($user['activo'] === 't') ||
+                  ($user['activo'] === 'true');
+        if (!$activo) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Usuario inactivo'
+            ], 401);
+        }
+
+        if (!$this->userModel->verifyPassword($password, $user['password'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Credenciales inválidas'
+            ], 401);
+        }
+
+        $tokenData = [
+            'user_id' => (int)$user['idusuario'],
+            'email'   => $user['email'],
+            'role'    => $user['rol_nombre'] ?? null,
+            'role_id' => isset($user['idrol']) ? (int)$user['idrol'] : null,
+        ];
+        $token = $this->jwtService->generateToken($tokenData);
+
+        unset($user['password']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Login exitoso',
+            'data' => [
+                'user'  => $user,
+                'token' => $token,
+            ]
+        ], 200);
+
+    } catch (\Throwable $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Error interno del servidor',
+            'error'   => $e->getMessage(),
+        ], 500);
     }
+}
+
+
     
     /**
      * Refrescar Token
@@ -160,48 +135,67 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
+
+        \Log::info('ME DEBUG IN', [
+    'Authorization'      => $request->header('Authorization'),
+    'HTTP_AUTHORIZATION' => $request->server('HTTP_AUTHORIZATION'),
+    'query_token'        => $request->query('token'),
+]);
+
+
         try {
+            // 1️⃣ Extraer token del header Authorization
             $token = $this->jwtService->extractTokenFromHeader($request);
-            
             if (!$token) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Token no proporcionado'
                 ], 401);
             }
-            
+
+            // 2️⃣ Validar token y obtener payload
             $payload = $this->jwtService->validateToken($token);
-            
             if (!$payload) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token inválido'
+                    'message' => 'Token inválido o expirado'
                 ], 401);
             }
-            
-            $user = $this->userModel->findById($payload['user_id']);
-            
+
+            // 3️⃣ Tipado defensivo: convertir user_id a entero
+            $userId = isset($payload['user_id']) ? (int) $payload['user_id'] : 0;
+            if ($userId <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token inválido: no contiene ID de usuario válido'
+                ], 401);
+            }
+
+            // 4️⃣ Buscar usuario
+            $user = $this->userModel->findById($userId);
             if (!$user) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Usuario no encontrado'
                 ], 404);
             }
-            
-            // Remover password de la respuesta
+
+            // 5️⃣ Limpiar password antes de responder
             unset($user['password']);
-            
+
+            // 6️⃣ Respuesta final
             return response()->json([
                 'success' => true,
                 'data' => $user
             ], 200);
-            
-        } catch (\Exception $e) {
+
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Error interno del servidor',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage()
             ], 500);
         }
     }
+
 }

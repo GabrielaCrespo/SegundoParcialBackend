@@ -292,40 +292,28 @@ class UserController extends Controller
     /**
      * Activar/Desactivar usuario
      */
-    public function toggleStatus(Request $request, $id): JsonResponse
+    public function toggleStatus($id): \Illuminate\Http\JsonResponse
     {
         try {
-            $user = $this->userModel->findById($id);
-            if (!$user) {
+            $row = $this->userModel->toggleStatus((int)$id);
+            if (!$row) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Usuario no encontrado'
                 ], 404);
             }
-            
-            $newStatus = !$user['activo'];
-            
-            $updatedUser = $this->userModel->update($id, [
-                'nombre' => $user['nombre'],
-                'celular' => $user['celular'],
-                'username' => $user['username'],
-                'email' => $user['email'],
-                'activo' => $newStatus,
-                'idrol' => $user['idrol']
-            ]);
-            
             return response()->json([
                 'success' => true,
-                'message' => 'Estado de usuario actualizado exitosamente',
-                'data' => $updatedUser
+                'message' => 'Estado actualizado',
+                'data'    => $row
             ], 200);
-            
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            \Log::error('toggleStatus failed', ['id'=>$id, 'err'=>$e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Error al cambiar estado del usuario',
-                'error' => $e->getMessage()
+                'message' => 'Error interno al actualizar estado'
             ], 500);
         }
     }
+
 }
