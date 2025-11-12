@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityLogController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -70,6 +71,8 @@ Route::middleware(['api'])->group(function () {
         Route::get('/search/especialidad', [DocenteController::class, 'searchByEspecialidad']);
     });
 
+    
+
     Route::prefix('coordinadores')->group(function () {
         Route::get('/', [CoordinadorController::class, 'index']);
         Route::get('/{id}', [CoordinadorController::class, 'show']);
@@ -126,7 +129,11 @@ Route::middleware(['api'])->group(function () {
     });
 });
 
-
+// 🧾 BITÁCORA
+Route::prefix('bitacora')->group(function () {
+    Route::get('/', [ActivityLogController::class, 'index']);
+    Route::get('/{id}', [ActivityLogController::class, 'show']);
+});
 
 Route::fallback(function () {
     return response()->json([
