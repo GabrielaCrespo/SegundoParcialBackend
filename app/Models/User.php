@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Services\DatabaseService;
+use App\Services\JWTService;
+use Illuminate\Http\Request;
 
 class User
 {
@@ -27,7 +29,7 @@ class User
 
     public function findByEmail($email): ?array
     {
-        $sql = "SELECT ".self::SELECT_FIELDS."
+        $sql = "SELECT " . self::SELECT_FIELDS . "
                 FROM usuario u
                 LEFT JOIN rol r ON u.idrol = r.idrol
                 WHERE u.email = $1
@@ -37,7 +39,7 @@ class User
 
     public function findByUsername($username): ?array
     {
-        $sql = "SELECT ".self::SELECT_FIELDS."
+        $sql = "SELECT " . self::SELECT_FIELDS . "
                 FROM usuario u
                 LEFT JOIN rol r ON u.idrol = r.idrol
                 WHERE u.username = $1
@@ -47,7 +49,7 @@ class User
 
     public function findById($id): ?array
     {
-        $sql = "SELECT ".self::SELECT_FIELDS."
+        $sql = "SELECT " . self::SELECT_FIELDS . "
                 FROM usuario u
                 LEFT JOIN rol r ON u.idrol = r.idrol
                 WHERE u.idusuario = $1
@@ -57,7 +59,7 @@ class User
 
     public function getAll(): array
     {
-        $sql = "SELECT ".self::SELECT_FIELDS."
+        $sql = "SELECT " . self::SELECT_FIELDS . "
                 FROM usuario u
                 LEFT JOIN rol r ON u.idrol = r.idrol
                 ORDER BY u.idusuario";
@@ -94,7 +96,7 @@ class User
         $params = [];
         $i = 1;
 
-        foreach (['nombre','celular','username','email','activo','idrol','password'] as $field) {
+        foreach (['nombre', 'celular', 'username', 'email', 'activo', 'idrol', 'password'] as $field) {
             if (!array_key_exists($field, $data)) continue;
 
             if ($field === 'password') {
@@ -113,7 +115,7 @@ class User
 
         if ($sets) {
             $params[] = $id;
-            $sql = "UPDATE usuario SET ".implode(', ', $sets)." WHERE idusuario = $".$i;
+            $sql = "UPDATE usuario SET " . implode(', ', $sets) . " WHERE idusuario = $" . $i;
             $this->db->exec($sql, $params);
         }
 
@@ -138,5 +140,32 @@ class User
     }
 
 
+    public function getLoggedUserName(Request $request): ?string
+    {
+        // Servicio que valida el token
+        $jwt = new JWTService();
 
+        // Extrae token del header Authorization
+        $token = $jwt->extractTokenFromHeader($request);
+        if (!$token) {
+            return null; // No hay token en el encabezado
+        }
+
+        // Valida y decodifica el token
+        $payload = $jwt->validateToken($token);
+        if (!$payload || !isset($payload['idusuario'])) {
+            return null; // Token inválido o expirado
+        }
+
+        // Consulta SQL para obtener el usuario actual
+        $sql = "SELECT nombre 
+            FROM usuario 
+            WHERE idusuario = $1 
+            LIMIT 1";
+
+        $result = $this->db->fetchOne($sql, [$payload['idusuario']]);
+
+        // Devuelve el nombre o null si no existe
+        return $result['nombre'] ?? null;
+    }
 }

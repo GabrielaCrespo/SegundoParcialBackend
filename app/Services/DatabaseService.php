@@ -26,7 +26,7 @@ class DatabaseService
         $this->conn = @pg_connect($connStr);
         if (!$this->conn) {
             $pgErr = @pg_last_error() ?: 'sin detalle';
-            throw new \RuntimeException('No se pudo conectar a PostgreSQL. Detalle: '.$pgErr);
+            throw new \RuntimeException('No se pudo conectar a PostgreSQL. Detalle: ' . $pgErr);
         }
     }
 
@@ -40,14 +40,12 @@ class DatabaseService
 
         $status = @pg_connection_status($this->conn);
         if ($status !== PGSQL_CONNECTION_OK) {
-            // intenta reconectar
             @pg_close($this->conn);
             $this->conn = null;
             $this->connect();
             return;
         }
 
-        // ping defensivo (algunos drivers marcan OK pero no responden)
         if (@pg_ping($this->conn) === false) {
             @pg_close($this->conn);
             $this->conn = null;
@@ -55,7 +53,11 @@ class DatabaseService
         }
     }
 
-    public function query(string $sql, array $params = []): array
+    /**
+     * ✅ Consulta genérica (SELECT o modificación)
+     * Permite login y elimina correctamente.
+     */
+    public function query(string $sql, array $params = []): array|bool
     {
         $this->ensureConnection();
 
@@ -68,10 +70,21 @@ class DatabaseService
             throw new \RuntimeException($err);
         }
 
-        $rows = @pg_fetch_all($result);
-        return $rows ?: [];
+        $sqlTrim = trim(strtolower($sql));
+
+        // ✅ Si es SELECT o RETURNING → devolver filas (para login)
+        if (str_starts_with($sqlTrim, 'select') || str_contains($sqlTrim, 'returning')) {
+            $rows = @pg_fetch_all($result);
+            return $rows ?: [];
+        }
+
+        // ✅ Si es DELETE / UPDATE / INSERT → devolver true/false según filas afectadas
+        return @pg_affected_rows($result) > 0;
     }
 
+    /**
+     * ✅ Para operaciones de modificación explícitas.
+     */
     public function exec(string $sql, array $params = []): int
     {
         $this->ensureConnection();
@@ -88,17 +101,27 @@ class DatabaseService
         return @pg_affected_rows($result) ?: 0;
     }
 
+    /**
+     * ✅ Devuelve todas las filas (para listados).
+     */
     public function fetchAll(string $sql, array $params = []): array
     {
-        return $this->query($sql, $params);
+        $data = $this->query($sql, $params);
+        return is_array($data) ? $data : [];
     }
 
+    /**
+     * ✅ Devuelve una sola fila (para login, búsquedas).
+     */
     public function fetchOne(string $sql, array $params = []): ?array
     {
-        $rows = $this->query($sql, $params);
-        return $rows[0] ?? null;
+        $data = $this->query($sql, $params);
+        return (is_array($data) && count($data) > 0) ? $data[0] : null;
     }
 
+    /**
+     * Cierra la conexión al destruir la instancia.
+     */
     public function __destruct()
     {
         try {

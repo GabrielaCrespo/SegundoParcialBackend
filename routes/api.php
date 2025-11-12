@@ -41,7 +41,7 @@ Route::middleware(['api'])->group(function () {
         Route::delete('/{id}', [UserController::class, 'destroy']);
         Route::patch('/{id}/toggle-status', [UserController::class, 'toggleStatus']);
     });
-    
+
     Route::prefix('roles')->group(function () {
         Route::get('/', [RoleController::class, 'index']);
         Route::get('/{id}', [RoleController::class, 'show']);
@@ -52,7 +52,7 @@ Route::middleware(['api'])->group(function () {
         Route::post('/{id}/permisos', [RoleController::class, 'assignPermission']);
         Route::delete('/{id}/permisos', [RoleController::class, 'removePermission']);
     });
-    
+
     Route::prefix('permisos')->group(function () {
         Route::get('/', [PermisoController::class, 'index']);
         Route::get('/{id}', [PermisoController::class, 'show']);
@@ -61,7 +61,7 @@ Route::middleware(['api'])->group(function () {
         Route::delete('/{id}', [PermisoController::class, 'destroy']);
         Route::get('/{id}/roles', [PermisoController::class, 'getRoles']);
     });
-    
+
     Route::prefix('docentes')->group(function () {
         Route::get('/', [DocenteController::class, 'index']);
         Route::get('/{id}', [DocenteController::class, 'show']);
@@ -69,14 +69,14 @@ Route::middleware(['api'])->group(function () {
         Route::delete('/{id}', [DocenteController::class, 'destroy']);
         Route::get('/search/especialidad', [DocenteController::class, 'searchByEspecialidad']);
     });
-    
+
     Route::prefix('coordinadores')->group(function () {
         Route::get('/', [CoordinadorController::class, 'index']);
         Route::get('/{id}', [CoordinadorController::class, 'show']);
         Route::put('/{id}', [CoordinadorController::class, 'update']);
         Route::delete('/{id}', [CoordinadorController::class, 'destroy']);
     });
-    
+
     Route::prefix('materias')->group(function () {
         Route::get('/', [MateriaController::class, 'index']);
         Route::get('/{id}', [MateriaController::class, 'show']);
@@ -84,7 +84,7 @@ Route::middleware(['api'])->group(function () {
         Route::put('/{id}', [MateriaController::class, 'update']);
         Route::delete('/{id}', [MateriaController::class, 'destroy']);
     });
-    
+
     Route::prefix('aulas')->group(function () {
         Route::get('/', [AulaController::class, 'index']);
         Route::get('/{id}', [AulaController::class, 'show']);
@@ -92,7 +92,7 @@ Route::middleware(['api'])->group(function () {
         Route::put('/{id}', [AulaController::class, 'update']);
         Route::delete('/{id}', [AulaController::class, 'destroy']);
     });
-    
+
     Route::prefix('horarios')->group(function () {
         Route::get('/', [HorarioController::class, 'index']);
         Route::get('/{id}', [HorarioController::class, 'show']);
@@ -100,7 +100,7 @@ Route::middleware(['api'])->group(function () {
         Route::put('/{id}', [HorarioController::class, 'update']);
         Route::delete('/{id}', [HorarioController::class, 'destroy']);
     });
-    
+
     Route::prefix('carreras')->group(function () {
         Route::get('/', [CarreraController::class, 'index']);
         Route::get('/{id}', [CarreraController::class, 'show']);
@@ -108,7 +108,7 @@ Route::middleware(['api'])->group(function () {
         Route::put('/{id}', [CarreraController::class, 'update']);
         Route::delete('/{id}', [CarreraController::class, 'destroy']);
     });
-    
+
     Route::prefix('facultades')->group(function () {
         Route::get('/', [FacultadController::class, 'index']);
         Route::get('/{id}', [FacultadController::class, 'show']);
@@ -116,7 +116,7 @@ Route::middleware(['api'])->group(function () {
         Route::put('/{id}', [FacultadController::class, 'update']);
         Route::delete('/{id}', [FacultadController::class, 'destroy']);
     });
-    
+
     Route::prefix('gestiones')->group(function () {
         Route::get('/', [GestionController::class, 'index']);
         Route::get('/{id}', [GestionController::class, 'show']);
@@ -125,6 +125,8 @@ Route::middleware(['api'])->group(function () {
         Route::delete('/{id}', [GestionController::class, 'destroy']);
     });
 });
+
+
 
 Route::fallback(function () {
     return response()->json([

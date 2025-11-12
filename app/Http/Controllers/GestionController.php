@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Gestion;
 use Illuminate\Http\Request;
 use Exception;
+use App\Models\SessionToken; 
 
 class GestionController extends Controller
 {
@@ -67,6 +68,21 @@ class GestionController extends Controller
             ]);
             
             $gestion = $this->gestion->create($data);
+
+            // 🔹 Obtener usuario logueado desde session_tokens
+            $ultimaSesion = SessionToken::latest('idsession')->first();
+            $nombreUsuario = $ultimaSesion ? $ultimaSesion->nombre : 'Sistema';
+
+            // 🔹 Registrar en Activity Log (sin bandera)
+            activity('Gestión')
+                ->withProperties([
+                    'usuario' => $nombreUsuario,
+                    'anio' => $data['anio'],
+                    'periodo' => $data['periodo'],
+                    'fechainicio' => $data['fechainicio'],
+                    'fechafin' => $data['fechafin']
+                ])
+                ->log("El usuario {$nombreUsuario} creó una nueva gestión: {$data['anio']} - {$data['periodo']}");
             
             return response()->json([
                 'success' => true,
@@ -100,6 +116,26 @@ class GestionController extends Controller
                 ], 404);
             }
             
+            // 🔹 Registrar en Activity Log (con bandera para evitar duplicados)
+            if (!app()->bound('activity_logged')) {
+                $ultimaSesion = SessionToken::latest('idsession')->first();
+                $nombreUsuario = $ultimaSesion ? $ultimaSesion->nombre : 'Sistema';
+
+                activity('Gestión')
+                    ->withProperties([
+                        'usuario' => $nombreUsuario,
+                        'id_gestion' => $id,
+                        'anio' => $data['anio'],
+                        'periodo' => $data['periodo'],
+                        'fechainicio' => $data['fechainicio'],
+                        'fechafin' => $data['fechafin']
+                    ])
+                    ->log("El usuario {$nombreUsuario} actualizó la gestión con ID {$id}");
+
+                app()->instance('activity_logged', true);
+            }
+
+
             return response()->json([
                 'success' => true,
                 'message' => 'Gestión actualizada exitosamente',
@@ -116,7 +152,13 @@ class GestionController extends Controller
     public function destroy($id)
     {
         try {
-            $deleted = $this->gestion->delete($id);
+
+            // 🔹 Obtener datos antes de eliminar
+        $gestionModel = new \App\Models\Gestion();
+        $gestionEliminada = $gestionModel->findById($id);
+
+           $deleted = $this->gestion->delete($id);
+
             
             if (!$deleted) {
                 return response()->json([
@@ -125,6 +167,27 @@ class GestionController extends Controller
                 ], 404);
             }
             
+           // 🔹 Obtener usuario logueado desde session_tokens
+        $ultimaSesion = \App\Models\SessionToken::latest('idsession')->first();
+        $nombreUsuario = $ultimaSesion ? $ultimaSesion->nombre : 'Sistema';
+
+        // 🔹 Registrar en Activity Log (sin modificar flujo)
+        activity('Gestión')
+            ->withProperties([
+                'usuario' => $nombreUsuario,
+                'id_gestion' => $id,
+                'anio' => $gestionEliminada['anio'] ?? null,
+                'periodo' => $gestionEliminada['periodo'] ?? null,
+                'fechainicio' => $gestionEliminada['fechainicio'] ?? null,
+                'fechafin' => $gestionEliminada['fechafin'] ?? null,
+            ])
+            ->log(
+                "El usuario {$nombreUsuario} eliminó la gestión " .
+                ($gestionEliminada['anio'] ?? 'desconocida') . ' - ' .
+                ($gestionEliminada['periodo'] ?? '') .
+                " (ID {$id})"
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Gestión eliminada exitosamente'

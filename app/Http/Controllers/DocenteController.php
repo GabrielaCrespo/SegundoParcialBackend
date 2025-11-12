@@ -6,18 +6,19 @@ use App\Models\Docente;
 use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use App\Models\SessionToken; //nuevo
 
 class DocenteController extends Controller
 {
     private $docenteModel;
     private $roleModel;
-    
+
     public function __construct()
     {
         $this->docenteModel = new Docente();
         $this->roleModel = new Role();
     }
-    
+
     /**
      * CU5 - Listar todos los docentes
      */
@@ -25,12 +26,11 @@ class DocenteController extends Controller
     {
         try {
             $docentes = $this->docenteModel->findAll();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $docentes
             ], 200);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -39,7 +39,7 @@ class DocenteController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * CU5 - Obtener un docente por ID
      */
@@ -47,19 +47,18 @@ class DocenteController extends Controller
     {
         try {
             $docente = $this->docenteModel->findById($id);
-            
+
             if (!$docente) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Docente no encontrado'
                 ], 404);
             }
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $docente
             ], 200);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -68,7 +67,7 @@ class DocenteController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * CU5 - Registrar nuevo docente
      */
@@ -81,14 +80,14 @@ class DocenteController extends Controller
             $email = $request->input('email');
             $password = $request->input('password');
             $idrol = $request->input('idrol');
-            
+
             if (!$nombre || !$username || !$email || !$password || !$idrol) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Los campos nombre, username, email, password e idrol son requeridos'
                 ], 400);
             }
-            
+
             // Validar que el rol existe
             if (!$this->roleModel->exists($idrol)) {
                 return response()->json([
@@ -96,7 +95,7 @@ class DocenteController extends Controller
                     'message' => 'El rol especificado no existe'
                 ], 400);
             }
-            
+
             // Preparar datos del usuario
             $userData = [
                 'nombre' => $nombre,
@@ -107,28 +106,42 @@ class DocenteController extends Controller
                 'activo' => $request->input('activo', true),
                 'idrol' => $idrol
             ];
-            
+
             // Preparar datos específicos del docente
             $docenteData = [
                 'especialidad' => $request->input('especialidad'),
                 'fechacontrato' => $request->input('fechacontrato')
             ];
-            
+
             $docente = $this->docenteModel->create($userData, $docenteData);
-            
+
             if (!$docente) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Error al crear docente'
                 ], 500);
             }
-            
+
+            // 🔹 Buscar el último usuario logueado en session_tokens
+            $ultimaSesion = SessionToken::latest('idsession')->first(); //nuevo
+            $nombreUsuario = $ultimaSesion ? $ultimaSesion->nombre : 'Sistema'; //nuevo
+
+            activity('Docente')
+                ->withProperties([
+                    'usuario' => $nombreUsuario,
+                    'nombre_docente' => $nombre,
+                    'email' => $email,
+                    'especialidad' => $request->input('especialidad'),
+                ])
+                ->log("El usuario {$nombreUsuario} registró un nuevo docente: {$nombre}"); //
+
+
+
             return response()->json([
                 'success' => true,
                 'message' => 'Docente registrado exitosamente',
                 'data' => $docente
             ], 201);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -137,7 +150,7 @@ class DocenteController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * CU6 - Actualizar datos del docente
      */
@@ -152,14 +165,16 @@ class DocenteController extends Controller
                     'message' => 'Docente no encontrado'
                 ], 404);
             }
-            
+
             // Preparar datos del usuario si se proporcionan
             $userData = null;
-            if ($request->has('nombre') || $request->has('username') || $request->has('email') || 
-                $request->has('celular') || $request->has('activo') || $request->has('idrol')) {
-                
+            if (
+                $request->has('nombre') || $request->has('username') || $request->has('email') ||
+                $request->has('celular') || $request->has('activo') || $request->has('idrol')
+            ) {
+
                 $userData = [];
-                
+
                 if ($request->has('nombre')) $userData['nombre'] = $request->input('nombre');
                 if ($request->has('celular')) $userData['celular'] = $request->input('celular');
                 if ($request->has('username')) $userData['username'] = $request->input('username');
@@ -175,36 +190,50 @@ class DocenteController extends Controller
                     }
                     $userData['idrol'] = $idrol;
                 }
-                
+
                 if ($request->has('password')) {
                     $userData['password'] = $request->input('password');
                 }
             }
-            
+
             // Preparar datos específicos del docente si se proporcionan
             $docenteData = null;
             if ($request->has('especialidad') || $request->has('fechacontrato')) {
                 $docenteData = [];
-                
+
                 if ($request->has('especialidad')) $docenteData['especialidad'] = $request->input('especialidad');
                 if ($request->has('fechacontrato')) $docenteData['fechacontrato'] = $request->input('fechacontrato');
             }
-            
+
             $docente = $this->docenteModel->update($id, $userData, $docenteData);
-            
+
             if (!$docente) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Error al actualizar docente'
                 ], 500);
             }
-            
+
+            // 🔹 5️⃣ Buscar el último usuario logueado en la tabla session_tokens
+        $ultimaSesion = SessionToken::latest('idsession')->first();
+        $nombreUsuario = $ultimaSesion ? $ultimaSesion->nombre : 'Sistema';
+
+        // 🔹 6️⃣ Registrar acción en Activity Log
+        activity('Docente')
+            ->withProperties([
+                'usuario' => $nombreUsuario,
+                'id_docente' => $id,
+                'nombre_docente' => $existingDocente['nombre'] ?? null,
+                'especialidad' => $docenteData['especialidad'] ?? $existingDocente['especialidad'] ?? null,
+            ])
+            ->log("El usuario {$nombreUsuario} actualizó los datos del docente con ID {$id}");
+
+
             return response()->json([
                 'success' => true,
                 'message' => 'Docente actualizado exitosamente',
                 'data' => $docente
             ], 200);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -213,7 +242,7 @@ class DocenteController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * CU5 - Eliminar docente
      */
@@ -228,21 +257,34 @@ class DocenteController extends Controller
                     'message' => 'Docente no encontrado'
                 ], 404);
             }
-            
+
             $result = $this->docenteModel->delete($id);
-            
+
             if (!$result) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Error al eliminar docente'
                 ], 500);
             }
-            
+
+            // 🔹 Obtener usuario logueado desde la tabla session_tokens
+            $ultimaSesion = SessionToken::latest('idsession')->first();
+            $nombreUsuario = $ultimaSesion ? $ultimaSesion->nombre : 'Sistema';
+
+            // 🔹 Registrar acción en Activity Log
+            activity('Docente')
+                ->withProperties([
+                    'usuario' => $nombreUsuario,
+                    'nombre_docente' => $docente['nombre'] ?? null,
+                    'email' => $docente['email'] ?? null,
+                    'especialidad' => $docente['especialidad'] ?? null,
+                ])
+                ->log("El usuario {$nombreUsuario} eliminó al docente: " . ($docente['nombre'] ?? 'Desconocido'));
+
             return response()->json([
                 'success' => true,
                 'message' => 'Docente eliminado exitosamente'
             ], 200);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -251,7 +293,7 @@ class DocenteController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * Buscar docentes por especialidad
      */
@@ -259,21 +301,20 @@ class DocenteController extends Controller
     {
         try {
             $especialidad = $request->input('especialidad');
-            
+
             if (!$especialidad) {
                 return response()->json([
                     'success' => false,
                     'message' => 'El parámetro especialidad es requerido'
                 ], 400);
             }
-            
+
             $docentes = $this->docenteModel->findByEspecialidad($especialidad);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $docentes
             ], 200);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
