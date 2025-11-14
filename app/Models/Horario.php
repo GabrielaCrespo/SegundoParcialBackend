@@ -108,7 +108,7 @@ class Horario
     {
         $query = "SELECT EXISTS(SELECT 1 FROM horario WHERE idhorario = $1) as exists";
         $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function findByRangoHoras($horaInicio, $horaFin)

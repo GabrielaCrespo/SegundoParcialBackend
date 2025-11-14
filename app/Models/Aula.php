@@ -81,7 +81,7 @@ class Aula
     {
         $query = "SELECT EXISTS(SELECT 1 FROM aula WHERE idaula = $1) as exists";
         $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function findByFacultad($idfacultad)
@@ -116,6 +116,6 @@ class Aula
             $result = $this->db->fetchOne($query, [$numero]);
         }
         
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
 }

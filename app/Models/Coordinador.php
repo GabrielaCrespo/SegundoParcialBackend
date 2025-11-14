@@ -95,6 +95,6 @@ class Coordinador
     {
         $query = "SELECT EXISTS(SELECT 1 FROM coordinador WHERE idcoordinador = $1) as exists";
         $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
 }

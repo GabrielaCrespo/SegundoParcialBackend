@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+
+  backend:
+    build: .
+    container_name: backend_sga_local
+    ports:
+      - "8000:8080"
+    env_file: .env.local
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    container_name: postgres_sga_local
+    restart: always
+    environment:
+      POSTGRES_DB: 2dop
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 2025
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

@@ -15,6 +15,9 @@ use App\Http\Controllers\HorarioController;
 use App\Http\Controllers\CarreraController;
 use App\Http\Controllers\FacultadController;
 use App\Http\Controllers\GestionController;
+use App\Http\Controllers\GrupoController;
+use App\Http\Controllers\AsignacionController;
+use App\Http\Controllers\AsignacionHorarioController;
 
 use App\Models\User as UserModel;
 
@@ -126,6 +129,33 @@ Route::middleware(['api'])->group(function () {
         Route::post('/', [GestionController::class, 'store']);
         Route::put('/{id}', [GestionController::class, 'update']);
         Route::delete('/{id}', [GestionController::class, 'destroy']);
+    });
+
+    // 📚 GRUPOS
+    Route::prefix('grupos')->group(function () {
+        Route::get('/', [GrupoController::class, 'index']);
+        Route::get('/{id}', [GrupoController::class, 'show']);
+        Route::post('/', [GrupoController::class, 'store']);
+        Route::put('/{id}', [GrupoController::class, 'update']);
+        Route::delete('/{id}', [GrupoController::class, 'destroy']);
+    });
+
+    // 📅 ASIGNACIONES
+    Route::prefix('asignaciones')->group(function () {
+        Route::get('/', [AsignacionController::class, 'index']);
+        Route::get('/{id}', [AsignacionController::class, 'show']);
+        Route::post('/', [AsignacionController::class, 'store']);
+        Route::patch('/{id}/slots', [AsignacionController::class, 'updateSlots']);
+        Route::delete('/{id}', [AsignacionController::class, 'destroy']);
+        Route::post('/conflictos', [AsignacionController::class, 'checkConflicts']);
+        Route::delete('/gestion/{idgestion}', [AsignacionController::class, 'destroyByGestion']);
+    });
+
+    // 🕐 ASIGNACIÓN DE HORARIOS (endpoints auxiliares)
+    Route::prefix('asignacion-horarios')->group(function () {
+        Route::get('/{idasignacion}', [AsignacionHorarioController::class, 'getHorariosByAsignacion']);
+        Route::post('/', [AsignacionHorarioController::class, 'addHorario']);
+        Route::delete('/{idasignacion}/{idhorario}', [AsignacionHorarioController::class, 'removeHorario']);
     });
 });
 

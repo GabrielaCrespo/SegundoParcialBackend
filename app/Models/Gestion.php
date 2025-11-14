@@ -77,7 +77,7 @@ class Gestion
     {
         $query = "SELECT EXISTS(SELECT 1 FROM gestion WHERE idgestion = $1) as exists";
         $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function findByAnio($anio)

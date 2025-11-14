@@ -97,7 +97,7 @@ class Docente
     {
         $query = "SELECT EXISTS(SELECT 1 FROM docente WHERE iddocente = $1) as exists";
         $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function findByEspecialidad($especialidad)

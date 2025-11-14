@@ -81,7 +81,7 @@ class Carrera
     {
         $query = "SELECT EXISTS(SELECT 1 FROM carrera WHERE idcarrera = $1) as exists";
         $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function findByFacultad($idfacultad)
@@ -116,7 +116,7 @@ class Carrera
             $result = $this->db->fetchOne($query, [$sigla]);
         }
         
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function getMaterias($id)
@@ -147,7 +147,7 @@ class Carrera
     {
         $query = "SELECT EXISTS(SELECT 1 FROM materia_carrera WHERE idcarrera = $1 AND idmateria = $2) as exists";
         $result = $this->db->fetchOne($query, [$idcarrera, $idmateria]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function getStatsMaterias($id)

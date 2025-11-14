@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             PermisoSeeder::class,
             RolPermisoSeeder::class,
             UsuarioSeeder::class,
+            HorarioSeeder::class,
         ]);
     }
 }

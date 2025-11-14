@@ -63,11 +63,11 @@ class Role
         return $this->db->query($query, [$id]);
     }
     
-    public function exists($id)
+    public function exists($idrol)
     {
         $query = "SELECT EXISTS(SELECT 1 FROM rol WHERE idrol = $1) as exists";
-        $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        $result = $this->db->fetchOne($query, [$idrol]);
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function getRolePermissions($idrol)

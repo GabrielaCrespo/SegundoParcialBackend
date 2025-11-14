@@ -67,7 +67,7 @@ class Permiso
     {
         $query = "SELECT EXISTS(SELECT 1 FROM permiso WHERE idpermiso = $1) as exists";
         $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function getRolesByPermiso($idpermiso)

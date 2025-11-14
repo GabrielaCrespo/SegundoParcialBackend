@@ -81,7 +81,7 @@ class Facultad
     {
         $query = "SELECT EXISTS(SELECT 1 FROM facultad WHERE idfacultad = $1) as exists";
         $result = $this->db->fetchOne($query, [$id]);
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function isNroUnique($nro, $excludeId = null)
@@ -94,7 +94,7 @@ class Facultad
             $result = $this->db->fetchOne($query, [$nro]);
         }
         
-        return $result['exists'] ?? false;
+        return ($result['exists'] ?? 'f') === 't';
     }
     
     public function getAulas($id)
