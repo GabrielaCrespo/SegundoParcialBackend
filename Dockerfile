@@ -55,5 +55,7 @@ EXPOSE 8080
 
 # ------------------------------------------------------
 # Comando de ejecución en Render
+# NOTA: Las migraciones deben ejecutarse manualmente desde Render Shell
+# para evitar conflictos y problemas en el arranque del contenedor
 # ------------------------------------------------------
-CMD php artisan migrate --force && php artisan serve --host 0.0.0.0 --port 8080
+CMD php artisan serve --host 0.0.0.0 --port 8080
